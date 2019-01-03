@@ -21,7 +21,9 @@ private:
         CELL_SIZE = 40,
         BORDER_SIZE = 5,
         SCREEN_WIDTH = MAP_WIDTH * CELL_SIZE + BORDER_SIZE,
-        SCREEN_HEIGHT = MAP_HEIGHT * CELL_SIZE + BORDER_SIZE
+        SCREEN_HEIGHT = MAP_HEIGHT * CELL_SIZE + BORDER_SIZE,
+        OBSTACLE = 1000,
+        UNVISITED = -1
     };
 
     enum class Connectivity { FOUR, EIGHT };
@@ -29,6 +31,8 @@ private:
     const std::string TITLE_OF_MAIN_WINDOW { "FlowFields" };
     const sf::Time mFrameTime { sf::seconds(1.0f /FPS) };
     sf::RenderWindow mWindow;
+    sf::Font mFont;
+
     struct Node
     {
         int x, y;
@@ -49,18 +53,26 @@ private:
     };
     std::set<Node*, NodeCompare> mOldWave;
     std::set<Node*, NodeCompare> mCurrentWave;
-    bool mAgorythmFinished = false;
+    std::vector<Node*> mShortestPath;
+    bool mAlgorythmFinished = false;
     bool mIsPaused = false;
+    bool mPathFound = false;
     float mMaxDist = 0;
+    bool mPathRestored = false;
 
     void restart();
     void initMap();
     void resetMap();
     void createConnections(Connectivity connectivity);
+    void restorePath();
     bool isValidCoords(int x, int y) const;
     void inputPhase();
     void updatePhase(sf::Time frameTime);
     void renderPhase();
+    void drawLine(int x1, int y1, int x2, int y2, int thickness = 1,
+                  sf::Color color = sf::Color::White);
+    void drawArrow(int x1, int y1, int x2, int y2,
+                   sf::Color color = sf::Color::White);
     void togglePause();
     void centralizeWindow();
 };
