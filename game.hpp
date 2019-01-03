@@ -39,6 +39,7 @@ private:
         int distance;
         bool obstacle;
         std::vector<Node*> neighbours;
+        float vx, vy;
     };
     Node mMap[MAP_WIDTH][MAP_HEIGHT];
     Node *mStart;
@@ -65,13 +66,18 @@ private:
     void resetMap();
     void createConnections(Connectivity connectivity);
     void restorePath();
+    void calcGradients();
     bool isValidCoords(int x, int y) const;
     void inputPhase();
     void updatePhase(sf::Time frameTime);
     void renderPhase();
-    void drawLine(int x1, int y1, int x2, int y2, int thickness = 1,
+    void drawMap();
+    void drawCurrentWave();
+    void drawGradients();
+    void drawPath();
+    void drawLine(float x1, float y1, float x2, float y2, float thickness = 1,
                   sf::Color color = sf::Color::White);
-    void drawArrow(int x1, int y1, int x2, int y2,
+    void drawArrow(float x1, float y1, float x2, float y2,
                    sf::Color color = sf::Color::White);
     void togglePause();
     void centralizeWindow();

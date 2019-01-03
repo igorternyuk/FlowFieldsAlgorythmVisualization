@@ -79,6 +79,8 @@ void Game::resetMap()
         for(int x = 0; x < MAP_WIDTH; ++x)
         {
             mMap[y][x].distance = mMap[y][x].obstacle ? OBSTACLE : UNVISITED;
+            mMap[y][x].vx = 0;
+            mMap[y][x].vy = 0;
         }
     }
     createConnections(Connectivity::FOUR);
@@ -140,11 +142,30 @@ void Game::restorePath()
         });
         current = neigbours[0];
         mShortestPath.push_back(current);
-        if(mShortestPath.size() >= 256){
-            break;
-        }
     }
     std::reverse(mShortestPath.begin(), mShortestPath.end());
+}
+
+void Game::calcGradients()
+{
+    if(mPathFound)
+    {
+        for(int y = 0; y < MAP_HEIGHT; ++y)
+        {
+            for(int x = 0; x < MAP_WIDTH; ++x)
+            {
+                float distLeft = isValidCoords(x - 1, y) && !mMap[y][x - 1].obstacle ? mMap[y][x - 1].distance : mMap[y][x].distance;
+                float distRight = isValidCoords(x + 1, y) && !mMap[y][x + 1].obstacle ? mMap[y][x + 1].distance : mMap[y][x].distance;
+                float distUp = isValidCoords(x, y - 1) && !mMap[y - 1][x].obstacle ? mMap[y - 1][x].distance : mMap[y][x].distance;
+                float distDown = isValidCoords(x, y + 1) && !mMap[y + 1][x].obstacle ? mMap[y + 1][x].distance : mMap[y][x].distance;
+                float Dx = distRight - distLeft;
+                float Dy = distDown - distUp;
+                float r = sqrtf(Dx * Dx + Dy * Dy);
+                mMap[y][x].vx = Dx / r;
+                mMap[y][x].vy = Dy / r;
+            }
+        }
+    }
 }
 
 bool Game::isValidCoords(int x, int y) const
@@ -238,12 +259,26 @@ void Game::updatePhase(sf::Time frameTime)
     if(mPathFound && !mPathRestored)
     {
         restorePath();
+        calcGradients();
     }
 }
 
 void Game::renderPhase()
 {
     mWindow.clear();
+
+    drawMap();
+    drawCurrentWave();
+    if(mPathFound)
+    {
+        drawPath();
+        drawGradients();
+    }
+    mWindow.display();
+}
+
+void Game::drawMap()
+{
     for(int y = 0; y < MAP_HEIGHT; ++y)
     {
         for(int x = 0; x < MAP_WIDTH; ++x)
@@ -262,7 +297,7 @@ void Game::renderPhase()
             }
             if(&mMap[y][x] == mStart)
             {
-                node.setFillColor(sf::Color::Green);
+                node.setFillColor(sf::Color::Magenta);
             }
             if(&mMap[y][x] == mEnd)
             {
@@ -276,7 +311,10 @@ void Game::renderPhase()
             mWindow.draw(text);
         }
     }
+}
 
+void Game::drawCurrentWave()
+{
     //Draw current wave
     for(auto &node: mCurrentWave)
     {
@@ -287,41 +325,56 @@ void Game::renderPhase()
         rect.setFillColor(sf::Color::Green);
         mWindow.draw(rect);
     }
-
-    //Draw shortest path of exists
-    if(mPathFound)
-    {
-        for(size_t i = 1; i < mShortestPath.size(); ++i)
-        {
-            auto next = mShortestPath[i];
-            auto curr = mShortestPath[i - 1];
-            sf::CircleShape spot;
-            spot.setRadius(0.2f * CELL_SIZE);
-            spot.setPosition(curr->x * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2,
-                             curr->y * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2);
-            spot.setOrigin(spot.getRadius(), spot.getRadius());
-            spot.setFillColor(sf::Color::Yellow);
-            mWindow.draw(spot);
-            spot.setPosition(next->x * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2,
-                             next->y * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2);
-            mWindow.draw(spot);
-            drawLine(curr->x * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2,
-                     curr->y * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2 + 3,
-                     next->x * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2,
-                     next->y * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2 + 3,
-                     6, sf::Color::Yellow);
-        }
-    }
-
-    mWindow.display();
 }
 
-void Game::drawLine(int x1, int y1, int x2, int y2, int thickness, sf::Color color)
+void Game::drawGradients()
+{
+    //Draw vectors
+    const int arrowLength = CELL_SIZE / 2;
+    for(int y = 0; y < MAP_HEIGHT; ++y)
+    {
+        for(int x = 0; x < MAP_WIDTH; ++x)
+        {
+            float x1 = mMap[y][x].x * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2;
+            float y1 = mMap[y][x].y * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2;
+            float angle = atan2f(mMap[y][x].vy, mMap[y][x].vx);
+            float x2 = x1 + arrowLength * cosf(angle);
+            float y2 = y1 + arrowLength * sinf(angle);
+            drawArrow(x1, y1, x2, y2, sf::Color::Cyan);
+        }
+    }
+}
+
+void Game::drawPath()
+{
+    for(size_t i = 1; i < mShortestPath.size(); ++i)
+    {
+        auto next = mShortestPath[i];
+        auto curr = mShortestPath[i - 1];
+        sf::CircleShape spot;
+        spot.setRadius(0.2f * CELL_SIZE);
+        spot.setPosition(curr->x * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2,
+                         curr->y * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2);
+        spot.setOrigin(spot.getRadius(), spot.getRadius());
+        spot.setFillColor(sf::Color::Yellow);
+        mWindow.draw(spot);
+        spot.setPosition(next->x * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2,
+                         next->y * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2);
+        mWindow.draw(spot);
+        drawLine(curr->x * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2,
+                 curr->y * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2 + 3,
+                 next->x * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2,
+                 next->y * CELL_SIZE + CELL_SIZE / 2 + BORDER_SIZE / 2 + 3,
+                 6, sf::Color::Yellow);
+    }
+}
+
+void Game::drawLine(float x1, float y1, float x2, float y2, float thickness, sf::Color color)
 {
     auto dx = x2 - x1;
     auto dy = y2 - y1;
-    auto angle = atan2(dy, dx) / M_PI * 180.f;
-    auto length = sqrt(dx * dx + dy * dy);
+    auto angle = atan2(dy, dx) / M_PI * 180;
+    auto length = sqrtf(dx * dx + dy * dy);
     sf::RectangleShape line;
     line.setPosition(x1, y1 - thickness / 2);
     line.setSize(sf::Vector2f(length, thickness));
@@ -331,18 +384,18 @@ void Game::drawLine(int x1, int y1, int x2, int y2, int thickness, sf::Color col
     mWindow.draw(line);
 }
 
-void Game::drawArrow(int x1, int y1, int x2, int y2, sf::Color color)
+void Game::drawArrow(float x1, float y1, float x2, float y2, sf::Color color)
 {
     auto dx = x2 - x1;
     auto dy = y2 - y1;
     auto angle = atan2(dy, dx);
-    auto leftX = x2 - 100 * cos(angle - M_PI / 12);
-    auto leftY = y2 - 100 * sin(angle - M_PI / 12);
-    auto rightX = x2 - 100 * cos(angle + M_PI / 12);
-    auto rightY = y2 - 100 * sin(angle + M_PI / 12);
-    drawLine(x1, y1, x2, y2, 4, color);
-    drawLine(x2, y2, leftX, leftY, 4, color);
-    drawLine(x2, y2, rightX, rightY, 4, color);
+    auto leftX = x2 - 10 * cos(angle - M_PI / 12);
+    auto leftY = y2 - 10 * sin(angle - M_PI / 12);
+    auto rightX = x2 - 10 * cos(angle + M_PI / 12);
+    auto rightY = y2 - 10 * sin(angle + M_PI / 12);
+    drawLine(x1, y1, x2, y2, 1, color);
+    drawLine(x2, y2, leftX, leftY, 1, color);
+    drawLine(x2, y2, rightX, rightY, 1, color);
 }
 
 void Game::togglePause()
